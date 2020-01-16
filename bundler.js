@@ -4,13 +4,20 @@ const parser = require("@babel/parser");
 const traverse = require("@babel/traverse").default;
 const babel = require("@babel/core");
 
+/**
+ * 对每个模块的代码进行分析，使用babel插件分析
+ * @babel/parser 解析代码生成ast
+ * @babel/traverse 借助生成的ast进行转换, 得到依赖关系
+ * @babel/preset-env 对代码进行解析
+ */
 const moduleAnalyser = filename => {
   const content = fs.readFileSync(filename, "utf-8");
   //这样打印出来的就是AST 抽象语法树
   const ast = parser.parse(content, {
     sourceType: "module"
   });
-  //   console.log(ast.program.body);
+  console.log("ast", ast);
+  console.log("ast.program.body", ast.program.body);
   const dependencies = {};
   traverse(ast, {
     ImportDeclaration({ node }) {
@@ -23,12 +30,21 @@ const moduleAnalyser = filename => {
   const { code } = babel.transformFromAst(ast, null, {
     presets: ["@babel/preset-env"]
   });
-  return {
+  const moduleAnalyserRes = {
     filename,
     dependencies,
     code
   };
+  console.log("moduleAnalyserRes :", moduleAnalyserRes);
+  return moduleAnalyserRes;
 };
+
+/**
+ * 生成依赖图谱
+ * 使用的算法类似队列+递归
+ * 对每个模块进行分析，模块中若包含模块，即加入graphArray队列中再循环
+ * 最后把gtaphArray结构整理好放进graph对象中
+ */
 
 const makeDependenciesGraph = entry => {
   const entryModule = moduleAnalyser(entry);
@@ -52,11 +68,17 @@ const makeDependenciesGraph = entry => {
       code: item.code
     };
   });
+  console.log("graph", graph);
   return graph;
 };
 
+/**
+ * 生成代码
+ * 先讲graph代码形成字符串，
+ * 字符串中要处理reqire, export
+ */
+
 const generateCode = entry => {
-  console.log(makeDependenciesGraph(entry));
   const graph = JSON.stringify(makeDependenciesGraph(entry));
   return `
         (function(graph){
